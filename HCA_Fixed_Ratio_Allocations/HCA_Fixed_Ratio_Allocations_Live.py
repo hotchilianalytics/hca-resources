@@ -17,7 +17,7 @@ def handle_data(context, data):
         context.ORDERS_DONE = True
         trade(context, data) #Name of the original algo trading function
     else:
-        print("Exiting: Zipline-broker: context.portfolio : {}".format(context.portfolio))
+        print("Exiting: Zipline-broker: context.account : {}".format(context.portfolio))
         exit()
 def before_trading_start(context, data):
     c = context
