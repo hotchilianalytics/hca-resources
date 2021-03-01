@@ -19,6 +19,26 @@ def initialize(context):
     # schedule_function(daily_check, date_rules.every_day(), time_rules.market_open(minutes = 140))
     # schedule_function(record_vars, date_rules.every_day(), time_rules.market_close())
     
+def minut(context): #Minute of trading day
+    dt = context.get_datetime().astimezone(pytz.timezone('US/Eastern'))
+    return (dt.hour * 60) + dt.minute - 570
+    
+def sync_portfolio_to_broker(context, data):
+    log.info("___CurrZiplinPosBef: {}".format(context.portfolio.positions)) #BUG: This is a Criticalupdate...
+    if IS_LIVE:
+        log.info("___CurrBrokerPosCur: {}".format(context.broker.positions)) # Look=Hook for sync of context.portfolio to context.broker.portfolio
+    for x in list(context.portfolio.positions):
+        #ajjc: zlb: BUG: Clean out null portfolio values. Handle this generically in zipline-broker in some way
+        amt_x_port = context.portfolio.positions[x].amount
+        if amt_x_port == 0: 
+            del context.portfolio.positions[x]    
+    log.info("___CurrZiplinPosAft: {}".format(context.portfolio.positions)) #BUG: This is a Criticalupdate...
+        
+def handle_data(context, data):
+    time_now = minut(context)
+    log.info("___handle_data: {} = Current Trading Minute".format(time_now))
+    sync_portfolio_to_broker(context, data)
+    
 def handle_data(context, data):
     if (not context.ORDERS_DONE):
         context.ORDERS_DONE = True

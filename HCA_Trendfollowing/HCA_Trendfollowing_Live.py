@@ -30,16 +30,19 @@ def compute_momentum(context,data):
     return context.top_n_by_momentum
 
 def cancel_open_orders_and_clear_non_universe_positions(context):
+    from zipline.api import get_open_orders, order
+
     for security in get_open_orders():
         for order in get_open_orders(security):
             cancel_order(order)
-            log.warn('Security {} had open orders: now cancelled'.format(str(security)))
+            print('Security {} had open orders: now cancelled'.format(str(security)))
             
     positions      = context.broker.positions
     
     # Get rid of positions not in current universe
     for key in positions:
         if (key not in context.universe and not get_open_orders(key)):
+            print('Dump {}: Shares: {}'.format(key,-positions[key].amount))
             order(key, -positions[key].amount)      
 
         

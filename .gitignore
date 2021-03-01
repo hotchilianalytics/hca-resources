@@ -127,3 +127,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+HCA_Fundamentals/realtime-bars/
+
+*.state
+
+HCA_Fundamentals/AGTF_FirstTrade-2020-05-27.py
+
+HCA_Fundamentals/fund_bt.pkl
