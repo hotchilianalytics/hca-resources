@@ -101,7 +101,6 @@ class TelegramBot:
         self.strategies = HCA_Strategies
         self.strat_name = HCA_Strategies[0] # Default: Take the first strat in list.
         self.equity     = HCA_Equity #default
-        self.strat      = None
         
         self.dispatcher.add_handler(CommandHandler('strat', self.strat, pass_args=True))
         self.dispatcher.add_handler(CommandHandler('stats', self.stats, pass_args=True))
