@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
 import pandas as pd
 from alpha_vantage.timeseries import TimeSeries
-import fix_yahoo_finance as yf
+# import yfinance as yf
+#ajjc old: import fix_yahoo_finance as yf
 #because the is_list_like is moved to pandas.api.types
 pd.core.common.is_list_like = pd.api.types.is_list_like
 import ffn
@@ -21,10 +22,17 @@ class MeanRevOneSymZ:
 
     def get_asset_data(self, av_key, asset_sym, strt_date, end_date):
         ts = TimeSeries(key=av_key, output_format='pandas')
-        data, meta_data = ts.get_daily_adjusted(symbol=asset_sym, outputsize='full')
-        data = yf.download(asset_sym, start=strt_date, end=end_date)
-        data.rename(columns={'Adj Close': 'Adj_Close'}, inplace=True)
+        try:
+            data, meta_data = ts.get_daily_adjusted(symbol=asset_sym, outputsize='full')
+        except:
+            print(f"Bad data request for {asset_sym}")
+            return None
+        #data = yf.download(asset_sym, start=strt_date, end=end_date)
+        data.rename(columns={'5. adjusted close': 'Adj_Close', '1. open':'Open', '4. close':'Close'}, inplace=True)
+        data.index.name='Date'
+        #data.rename(columns={'Adj Close': 'Adj_Close'}, inplace=True)
         data['Adj_Open']=data.Open*(data.Adj_Close/data.Close)
+        data=data[strt_date:end_date]
         data.to_csv(asset_sym + '.csv')    
         pricing = pd.read_csv(
             asset_sym + '.csv',

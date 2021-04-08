@@ -58,7 +58,7 @@ from pytz import timezone as _tz  # Python only does once, makes this portable.
 import sys, os
 import json # For pretty-printing results
 
-IS_LIVE = True #True #False #False #True
+IS_LIVE = False #True #True #False #False #True
 DEBUG = True
 MINUTES_TO_REBAL = 1
 
@@ -189,13 +189,13 @@ def initialize(context):
         )
         schedule_function(record_vars, date_rules.every_day(), time_rules.market_close())
         schedule_function(cancel_open_orders, date_rules.week_end(days_offset=2), time_rules.market_close())
-
-
+    
     context.spy = symbol('SPY')  #sid(8554) #SPY
     context.TF_filter = False
     #context.TF_lookback = 60
     #Set number of securities to buy and bonds fund (when we are out of stocks)
     context.Target_securities_to_buy = 10 #15 #2 #1 #5 #10 #5
+    
     context.bonds = symbol('IEF') #sid(23870)  #IEF
     context.relative_momentum_lookback = 22 #4 #22 #22 #22 #126 #Momentum lookback
     context.momentum_skip_days = 1

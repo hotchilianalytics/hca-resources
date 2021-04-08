@@ -77,6 +77,10 @@ import pandas as pd
 from telegram.ext import Updater
 from telegram.ext import CommandHandler, MessageHandler, Filters
 
+import numpy as np
+import pyfolio as pf
+import ffn
+
 HCA_Namespaces = ['hca']
 HCA_Strategies = ['MeanRevZ', 'DebtEqRatio']
 HCA_Equity     = 'SPY' 
@@ -194,17 +198,23 @@ class TelegramBot:
         /strat select NAMESPACE/STRAT_NAME EQUITY
         """
         bot.send_message(chat_id=update.effective_chat.id, text=msg)
-    # /stats latest <num_days> <tail>
+    # /stats latest <num_days> <tail> <asset_name>
     def _stats_latest(self, bot, update, args):
-        if len(args) <= 3:
+        if len(args) <= 4:
             sim_days = 2 * 365 # Default simulation days = 2 years = 2*365 days
             tail_days = 0
             if args[0]=='latest':
                 if len(args) == 2:
                     sim_days = int(args[1])
                 if len(args) == 3:
+                    sim_days = int(args[1])                    
+                    tail_days = int(args[2])                 
+                if len(args) == 4:
+                    sim_days = int(args[1])                    
                     tail_days = int(args[2])
-                    
+                    asset_name = str(args[3])
+                    self.equity = asset_name.upper()
+                              
                 end_dt  = pd.datetime.today()
                 strt_dt = end_dt - pd.DateOffset(days=sim_days)                    
                 strt_ts =  strt_dt.strftime("%Y-%m-%d")
@@ -224,10 +234,20 @@ class TelegramBot:
                 stock      = self.strat.get_asset_data(self.strat.av_key, self.strat.asset_sym, strt_ts, end_ts)
 
                 bt_df      = self.strat.mr_trade(stock, self.strat.window_len)
+                
                 perf       = bt_df['equity'].calc_stats()
-                                
+                
+                perf_ret = pd.Series(bt_df['equity'])
+                perf_ret = perf_ret.replace([np.inf, -np.inf], np.nan)
+                perf_ret = perf_ret.fillna(0).diff().fillna(0)
+                #.fillna(0).pct_change()
+                
+                #perf = pf.plotting.show_perf_stats(perf_ret, factor_returns=None, live_start_date=None)                
+                #perf = pf.create_returns_tear_sheet(bt_df['equity'])
+                
                 with ListStream() as stats_msg: # contextmanager to re-direct print-sysout to StringIO instance.
                     perf.display()
+                    #pf.plotting.show_perf_stats(perf_ret, factor_returns=None, live_start_date=None)
                 
                 stats_msg_list = stats_msg.data.getvalue().splitlines()
                 
@@ -238,7 +258,7 @@ class TelegramBot:
                     
                 msg = '\n'.join(msg)
                 stats_msg_str = '\n'.join(stats_msg_list)
-                stats_render_md = self.strat.stats_calc(bt_df)
+                #stats_render_md = self.strat.stats_calc(bt_df)
                 #msg = msg + "\n" + stats_render_md + "\n" + perf_equity_md
                 #msg = msg + "\n" + stats_render_md + "\n" + stats_msg_str
                 msg1 = msg + "\n" + stats_msg_str
@@ -282,17 +302,19 @@ class TelegramBot:
             
                       
             stock       = self.strat.get_asset_data(self.strat.av_key, self.strat.asset_sym, strt_ts, end_ts)
-
-            bt_df       = self.strat.mr_trade(stock, self.strat.window_len)
-            perf        = bt_df['equity'].calc_stats()
-                            
-            with ListStream() as stats_msg: # contextmanager to re-direct print-sysout to StringIO instance.
-                perf.display()
-                          
-            stats_msg_list = stats_msg.data.getvalue().splitlines()
-            msg = '\n'.join(msg)
-            stats_msg_str = '\n'.join(stats_msg_list)
-            msg = msg + "\n" + stats_msg_str
+            if not stock:
+                msg = f'Bad asset name: {self.strat.asset_sym}'
+            else:
+                bt_df       = self.strat.mr_trade(stock, self.strat.window_len)
+                perf        = bt_df['equity'].calc_stats()
+                                
+                with ListStream() as stats_msg: # contextmanager to re-direct print-sysout to StringIO instance.
+                    perf.display()
+                              
+                stats_msg_list = stats_msg.data.getvalue().splitlines()
+                msg = '\n'.join(msg)
+                stats_msg_str = '\n'.join(stats_msg_list)
+                msg = msg + "\n" + stats_msg_str
 
         bot.send_message(chat_id=update.effective_chat.id, text=msg)
 
