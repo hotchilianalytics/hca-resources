@@ -254,20 +254,24 @@ class TelegramBot:
                 #perf_equity_md = perf.stats.as_format('.3f').to_markdown()
                 stats_disp =""
                 if tail_days >0:
-                    stats_disp = bt_df[['Close','money','amount','equity']].tail(tail_days).to_markdown()
+                    stats_disp_td = bt_df[['Close','money','amount','equity']]
+                    stats_disp_td         = stats_disp_td.tail(tail_days).sort_index(axis=0, ascending=False)
+                    msg2               = stats_disp_td.to_string(index_names=True,justify='right')
+                    msg2               = '```\n' + msg2 +  '```\n' #markdown pre-formatted
+                    
                     
                 msg = '\n'.join(msg)
                 stats_msg_str = '\n'.join(stats_msg_list)
                 #stats_render_md = self.strat.stats_calc(bt_df)
                 #msg = msg + "\n" + stats_render_md + "\n" + perf_equity_md
                 #msg = msg + "\n" + stats_render_md + "\n" + stats_msg_str
-                msg1 = msg + "\n" + stats_msg_str
-                msg2= f"\n\nLast {tail_days} of strategy\n\n" + stats_disp
+                msg1 = '```\n' + msg + "\n" + stats_msg_str + '```\n' 
+                msg2 = '```\n' + f"\n\nLast {tail_days} of strategy\n\n" +  '```\n'
 
                 #bot.send_message(chat_id=update.effective_chat.id, text=msg, parse_mode='html')
-                bot.send_message(chat_id=update.effective_chat.id, text=msg1, parse_mode='html')
+                bot.send_message(chat_id=update.effective_chat.id, text=msg1, parse_mode='MarkdownV2')
                 if tail_days >0:
-                    bot.send_message(chat_id=update.effective_chat.id, text=msg2, parse_mode='html')
+                    bot.send_message(chat_id=update.effective_chat.id, text=msg2, parse_mode='MarkdownV2')
                 
         else:
             bot.send_message(chat_id=update.effective_chat.id, text="Command /stats {} is invalid.".format(args))
@@ -320,6 +324,7 @@ class TelegramBot:
 
     def _stats_help(self, bot, update):
         msg = """Available options are:\n
+        /stats latest SIM_DAYS TAIL_DAYS_DISP EQUITY_NAME
         /stats latest SIM_DAYS   (defaults: sim length=last 2years=last 730days, equity=SPY, window size=11)
         /stats bt EQUITY WINDOW START END  (run backtest, using EQUITY and WINDOW, from START to END dates)
         examples:
@@ -337,6 +342,8 @@ class TelegramBot:
                    '/cmd sig 22  (last 22 days of this trading signal)',
                    '/cmd sig 22  arkk (last 22 days of the arkk  trading signal)']
             msg = '\n'.join(msg)
+            bot.send_message(chat_id=update.effective_chat.id, text=msg, parse_mode='html')
+            
         else:
             if len(args)==1:
                 sig_days = 1
@@ -379,13 +386,14 @@ class TelegramBot:
             
             stats_disp.columns = ['targ','cur','sig'] #rename cols
             stats_disp         = stats_disp[['cur','targ','sig']].fillna(0) #reorder cols
-            
-            stats_disp      = stats_disp.tail(sig_days)
-
-            msg2= f"\n\nLast {sig_days} of strategy\n\n" + stats_disp.to_markdown()
+            stats_disp         = stats_disp.tail(sig_days).sort_index(axis=0, ascending=False)
+            msg2               = stats_disp.to_string(index_names=True,justify='right')
+            msg2               = '```\n' + msg2 +  '```\n' #markdown pre-formatted
+            #msg2               = stats_disp.to_string(index_names=False, justify='right')
+            #msg2= f"\n\nLast {sig_days} of strategy\n\n" + stats_disp.to_markdown() #needs pandas>=1.0
             
             bot.send_message(chat_id=update.effective_chat.id, text=msg1, parse_mode='html')
-            bot.send_message(chat_id=update.effective_chat.id, text=msg2, parse_mode='html')
+            bot.send_message(chat_id=update.effective_chat.id, text=msg2, parse_mode='MarkdownV2')
 
     def _cmd_plot(self, bot, update, args):
         if len(args) < 2:
