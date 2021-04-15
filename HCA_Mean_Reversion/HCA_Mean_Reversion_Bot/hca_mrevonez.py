@@ -19,6 +19,15 @@ class MeanRevOneSymZ:
         self.end_date   = end_date
         self.av_key     = av_key
         self.asset_sym  = asset_sym
+        self.max_position = 1
+        self.percent_per_trade = 1.0    
+        #Slippage and commission adjustment  - simply reduces equity by a percentage guess
+        # a setting of 1 means no slippage, a setting of 0.999 gives 0.1% slippage
+        self.slippage_adj = 1
+        self.money = 10000.00
+        self.position_count = 0
+        
+
 
     def get_asset_data(self, av_key, asset_sym, strt_date, end_date):
         ts = TimeSeries(key=av_key, output_format='pandas')
@@ -63,27 +72,27 @@ class MeanRevOneSymZ:
         #If you don't use a maximum position size the positions will keep on pyramidding.
         #Set max_position to a high number (1000?) to disable this parameter
         #Need to beware of unintended leverage
-        max_position = 1
-        percent_per_trade = 1.0
+        max_position = self.max_position
+        percent_per_trade = self.percent_per_trade
     
         #Slippage and commission adjustment  - simply reduces equity by a percentage guess
         # a setting of 1 means no slippage, a setting of 0.999 gives 0.1% slippage
-        slippage_adj = 1
+        slippage_adj = self.slippage_adj
     
         # Compute the z-scores for each day using the historical data up to that day
         zscores = (stock.Adj_Close - mu) / std
     
         # Simulate trading
         # Start with your chosen starting capital and no positions
-        money = 10000.00
-        position_count = 0
+        money = self.money
+        position_count = self.position_count
     
         for i, row in enumerate(stock.itertuples(), 0):
     
             #set up position size so that each position is a fixed position of your account equity
             equity = money + (stock.Adj_Close[i] * position_count)
             if equity > 0:
-                fixed_frac = (equity * percent_per_trade) / stock.Adj_Close[i]
+                fixed_frac = (equity * percent_per_trade) / stock.Adj_Open[i] #stock.Adj_Close[i]
             else:
                 fixed_frac = 0
             fixed_frac = int(round(fixed_frac))
@@ -96,10 +105,10 @@ class MeanRevOneSymZ:
                                                    and zscores[i] > 0.5):
     
                     if position_count > 0:
-                        money += position_count * stock.Adj_Close[i] * slippage_adj
+                        money += position_count * stock.Adj_Open[i] * slippage_adj #stock.Adj_Close[i]
                     elif position_count < 0:
-                        money += position_count * stock.Adj_Close[i] * (
-                            1 / slippage_adj)
+                        money += position_count * stock.Adj_Open[i] * (
+                            1 / slippage_adj) #stock.Adj_Close[i]
                     position_count = 0
     
             # Sell short if the z-score is > 1 and if the longer term trend is negative
@@ -107,22 +116,22 @@ class MeanRevOneSymZ:
                                                                           lma[i]):
     
                 position_count -= fixed_frac
-                money += fixed_frac * stock.Adj_Close[i] * slippage_adj
+                money += fixed_frac * stock.Adj_Open[i] * slippage_adj #stock.Adj_Close[i]
     
             # Buy long if the z-score is < 1 and the longer term trend is positive
             elif zscores[i] < -1 and position_count < max_position and sma[i] > lma[i]:
     
                 position_count += fixed_frac
-                money -= fixed_frac * stock.Adj_Close[i] * (1 / slippage_adj)
+                money -= fixed_frac * stock.Adj_Open[i] * (1 / slippage_adj) #stock.Adj_Close[i]
     
             # Clear positions if the z-score between -.5 and .5
             elif abs(zscores[i]) < 0.5:
                 #money += position_count * stock.Adj_Close[i]
                 if position_count > 0:
-                    money += position_count * stock.Adj_Close[i] * slippage_adj
+                    money += position_count * stock.Adj_Open[i] * slippage_adj #stock.Adj_Close[i]
                 elif position_count < 0:
-                    money += position_count * stock.Adj_Close[i] * (
-                        1 / slippage_adj)
+                    money += position_count * stock.Adj_Open[i] * (
+                        1 / slippage_adj) #stock.Adj_Close[i]
                 position_count = 0
     
             #fill dictionary with the trading results.

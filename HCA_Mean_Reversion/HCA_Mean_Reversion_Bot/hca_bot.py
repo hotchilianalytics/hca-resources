@@ -99,12 +99,14 @@ class ListStream: #ContextManager for StringIO, to support print()
         
 class TelegramBot:
     def __init__(self, telegram_api_token):
-        self.updater = Updater(token=telegram_api_token, use_context=False)
+        self.updater    = Updater(token=telegram_api_token, use_context=False)
         self.dispatcher = self.updater.dispatcher
         self.namespaces = HCA_Namespaces
         self.strategies = HCA_Strategies
         self.strat_name = HCA_Strategies[0] # Default: Take the first strat in list.
         self.equity     = HCA_Equity #default
+        self.is_binary     = False  # Output buy/hold/sell signal as True=1/0/-1, False=buy/hold/sell shares
+        self.capital    = 10000.0
         
         self.dispatcher.add_handler(CommandHandler('strat', self.strat, pass_args=True))
         self.dispatcher.add_handler(CommandHandler('stats', self.stats, pass_args=True))
@@ -177,19 +179,57 @@ class TelegramBot:
             msg = '\n'.join(msg)
 
         bot.send_message(chat_id=update.effective_chat.id, text=msg)
-
+        
+    #def set_val(nm,val):
+        #switcher={
+                #'sig':'binary',
+                   #'capital : self.capital,
+                    #2:'Tuesday',
+                    #3:'Wednesday',
+                    #4:'Thursday',
+                    #5:'Friday',
+                    #6:'Saturday'
+            #}
+            #return switcher.get(i,"Invalid day of week")
+            
     def _strat_select(self, bot, update, args):
-        if len(args) != 3:
+        if (len(args) <2) or  (len(args) >3) :
             msg = ['message should have a format:',
-                   '/strat select NAME',
+                   '/strat select NAME (Use /strat list to find neames of supported strategies.)',
+                   '/strat select <name:value>',
                    'for example:',
-                   '/strat select MeanRevZ arkk']
+                   '/strat select MeanRevZ arkk',
+                   '/strat select capital:10000  (capital base amount in USD)' ,
+                   '/strat select sig:binary  (Signal Format:buy=1, hold=0,sell=-1)',
+                   '/strat select sig:shares (Signal Format: num_shares )',
+                   
+                   ]
             msg = '\n'.join(msg)
         else:
-            self.strat_name = args[1]
-            self.equity    = args[2].upper()
-            namespace = self.strat_name.split('/')[0]
-            msg = 'Selected strat: {} and Equity:{}'.format(self.strat_name, self.equity)
+            if len(args) == 2:
+                cmd1 = args[1]
+                nm, val = cmd1.split(':', 1)
+                if nm=='capital':
+                    self.capital = float(val)
+                elif nm=='sig':
+                    if val=='binary':
+                        self.is_binary = True
+                    elif val=='shares':
+                        self.is_binary = False
+                elif nm=='equity':
+                    self.equity = val.upper()
+                    
+                msg = 'Set: name:value = {}:{}'.format(nm, val)
+                
+            elif len(args) == 3:
+                nm = args[1]
+                val = args[2]               
+                self.strat_name = nm
+                self.equity    = val.upper()
+                namespace = self.strat_name.split('/')[0]
+                msg = 'Selected strat: {} and Equity:{}'.format(self.strat_name, self.equity)
+            
+            
         bot.send_message(chat_id=update.effective_chat.id, text=msg)
 
     def _strat_help(self, bot, update):
@@ -231,6 +271,8 @@ class TelegramBot:
 
                 self.strat = mr.MeanRevOneSymZ(strt_ts, end_ts)
                 self.strat.asset_sym = self.equity
+                self.strat.capital = self.capital
+                
                 stock      = self.strat.get_asset_data(self.strat.av_key, self.strat.asset_sym, strt_ts, end_ts)
 
                 bt_df      = self.strat.mr_trade(stock, self.strat.window_len)
@@ -286,6 +328,7 @@ class TelegramBot:
             
         else:
             equity  = args[1].upper()
+            self.equity =  equity
             window  = int(args[2])
             strt_ts = args[3]
             end_ts  = args[4]
@@ -293,7 +336,8 @@ class TelegramBot:
             if not self.strat:
                 self.strat = mr.MeanRevOneSymZ(strt_ts, end_ts)
                 
-            self.strat.asset_sym  = equity
+            self.strat.asset_sym  = self.equity
+            self.strat.capital = self.capital
             self.strat.window_len = window
              
             
@@ -306,7 +350,7 @@ class TelegramBot:
             
                       
             stock       = self.strat.get_asset_data(self.strat.av_key, self.strat.asset_sym, strt_ts, end_ts)
-            if not stock:
+            if stock is None:
                 msg = f'Bad asset name: {self.strat.asset_sym}'
             else:
                 bt_df       = self.strat.mr_trade(stock, self.strat.window_len)
@@ -378,6 +422,7 @@ class TelegramBot:
 
             self.strat = mr.MeanRevOneSymZ(strt_ts, end_ts)
             self.strat.asset_sym = self.equity
+            
             stock      = self.strat.get_asset_data(self.strat.av_key, self.strat.asset_sym, strt_ts, end_ts)
             bt_df      = self.strat.mr_trade(stock, self.strat.window_len)
             stats_disp = bt_df[['amount']]
@@ -387,6 +432,11 @@ class TelegramBot:
             stats_disp.columns = ['targ','cur','sig'] #rename cols
             stats_disp         = stats_disp[['cur','targ','sig']].fillna(0) #reorder cols
             stats_disp         = stats_disp.tail(sig_days).sort_index(axis=0, ascending=False)
+            if self.is_binary:
+                stats_disp[stats_disp < 0] = -1
+                stats_disp[stats_disp > 0] = 1
+                #no behaviour defined for df = 0
+                
             msg2               = stats_disp.to_string(index_names=True,justify='right')
             msg2               = '```\n' + msg2 +  '```\n' #markdown pre-formatted
             #msg2               = stats_disp.to_string(index_names=False, justify='right')
@@ -402,7 +452,8 @@ class TelegramBot:
                    'for example:',
                    '/cmd plot (Default value of COL1=equity)',
                    '/cmd plot equity',
-                    '/cmd plot Close equity']
+                    '/cmd plot Close equity',
+                    '/cmd plot comp  (Plot equity CumReturn: Close vs. Algo']
             msg = '\n'.join(msg)
             bot.send_message(chat_id=update.effective_chat.id, text=msg)
         else:
@@ -430,15 +481,29 @@ class TelegramBot:
 
             self.strat = mr.MeanRevOneSymZ(strt_ts, end_ts)
             self.strat.asset_sym = self.equity
+            self.strat.money = self.capital
+            
             stock      = self.strat.get_asset_data(self.strat.av_key, self.strat.asset_sym, strt_ts, end_ts)
 
             bt_df       = self.strat.mr_trade(stock, self.strat.window_len)
             
             fig = plt.figure()
             for channel_name in series:
-                if channel_name != 'x':
+                if channel_name != 'comp':
                     plt.plot(channel_name, data=bt_df,
                              marker='', linewidth=2, label=channel_name)
+                elif channel_name == 'comp':
+                    #bt_df = bt_df.rename(columns={'equity': self.strat.asset_sym})
+                    bt_df['MeanRev-'+self.strat.asset_sym] = (bt_df[['equity']].pct_change()+1.).cumprod()
+                    bt_df['Close-'+self.strat.asset_sym] = (bt_df[['Close']].pct_change()+1.).cumprod()
+                    
+                    for channel_name in ['MeanRev-'+self.strat.asset_sym, 'Close-'+self.strat.asset_sym]:
+                        plt.plot(channel_name, data=bt_df,
+                             marker='', linewidth=2, label=channel_name)
+                else:
+                    bot.send_message(chat_id=update.effective_chat.id, text=f"Bad command: /cmd plot  {series}") 
+                    return
+                    
             plt.legend()
 
             buffer = BytesIO()
