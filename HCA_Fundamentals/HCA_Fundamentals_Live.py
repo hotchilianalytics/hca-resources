@@ -58,7 +58,7 @@ from pytz import timezone as _tz  # Python only does once, makes this portable.
 import sys, os
 import json # For pretty-printing results
 
-IS_LIVE = False #True #True #False #False #True
+IS_LIVE = True #False #True #True #False #False #True
 DEBUG = True
 MINUTES_TO_REBAL = 1
 
@@ -175,7 +175,7 @@ def prorate(dist, max_alloc=0.1, atol=1.e-3):
         final_normed = final_pr/final_normed.sum()
     print("prorate: len={} sum={}".format(len(final_normed), final_normed.sum()))
     return final_normed
-    # wts_pr = prorate(allocation, max_alloc= 2.0 * context.maxportfoliobin)  put this somewhere
+    #wts_pr = prorate(allocation, max_alloc= 2.0 * context.maxportfoliobin)  put this somewhere
 
 def initialize(context):
     attach_pipeline(make_pipeline(), 'pipeline')
@@ -271,8 +271,8 @@ def before_trading_start(context, data):
     for x in list(context.portfolio.positions):
         #ajjc: zlb: BUG: Clean out null portfolio values. Handle this generically in zipline-broker in some way
         amt_x_port = context.portfolio.positions[x].amount
-        if amt_x_port == 0: 
-            del context.portfolio.positions[x]    
+        if amt_x_port == 0:
+            del context.portfolio.positions[x]
     log.info("BTS___CurrZiplinPosAft: {}".format(context.portfolio.positions)) #BUG: This is a Criticalupdate...
 
 def sync_portfolio_to_broker(context, data):
@@ -282,8 +282,8 @@ def sync_portfolio_to_broker(context, data):
     for x in list(context.portfolio.positions):
         #ajjc: zlb: BUG: Clean out null portfolio values. Handle this generically in zipline-broker in some way
         amt_x_port = context.portfolio.positions[x].amount
-        if amt_x_port == 0: 
-            del context.portfolio.positions[x]    
+        if amt_x_port == 0:
+            del context.portfolio.positions[x]
     log.info("___CurrZiplinPosAft: {}".format(context.portfolio.positions)) #BUG: This is a Criticalupdate...
         
 def handle_data(context, data):
@@ -315,6 +315,7 @@ def make_pipeline():
     #((de.latest >5)
     ###universe = (mc.latest >25e7) & (price_close > 5) #& (de.latest >15)
     #universe = (mc.latest >25e6) & (price_close > 1.10) # ajjc: Issue: current day may not have fundamentals
+    #universe = (mc.latest >10e6) & (price_close > 3.0) & (price_volm > 100000)
     universe = (fcf.latest > 1.5e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 1500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
     #universe = (fcf.latest > 1.e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
     #universe = universe & fcf.latest > 1.e8
@@ -324,15 +325,13 @@ def make_pipeline():
 
     indebted = ltd_to_eq_rank.top(NUM_TOP_INDEBTED, mask=universe) #10 30 150 60
 
-
-
     dnc_f = dnc.latest
     eusd_f = eusd.latest
     fcf_f = fcf.latest
 
     mom    = Returns(inputs=[USEP.open],window_length=126,mask=indebted)
     mom_av = SimpleMovingAverage(inputs=[mom],window_length=22,mask=indebted)
-                    #)
+
     pipe = Pipeline(columns={
         'close':price_close,
         'volm' :price_volm,
@@ -426,7 +425,7 @@ def trade(context, data):
         log.info("trade:___CurrBrokerPosCur: {}".format(context.broker.positions)) #BUG: This kicks off a re-read from IB-broker, and is a Criticalupdate...
         log.info("trade:___CurrPortfolioPosCur: {}".format(context.portfolio.positions)) #BUG: This kicks off a re-read from IB-broker, and is a Criticalupdate...
         
-    for x in list(context.portfolio.positions):            
+    for x in list(context.portfolio.positions):
         if (x in top_n_by_momentum) and (x.sid != context.bonds.sid) and (x not in context.auto_close) and (context.portfolio.positions[x].amount > 0):
             a=context.portfolio.positions[x].amount
             b=context.portfolio.positions[x].cost_basis #cost_basis != last_sale_price, if context.broker.portfolio not updated. It gives 0.0 here in live trading
@@ -439,7 +438,7 @@ def trade(context, data):
                 order_target_percent(x, 0)
             else:
                 context.stock_weights.set_value(x,s_w)
-            log.info("CurrPosInTopMomentum::[asset{}:amt{}:pct_cur_port{}] Date:{}".format(x, a, s_w*100., context.get_datetime())) 
+            log.info("CurrPosInTopMomentum::[asset{}:amt{}:pct_cur_port{}] Date:{}".format(x, a, s_w*100., context.get_datetime()))
             
         elif ((x not in top_n_by_momentum) and (x.sid != context.bonds.sid) and (x not in context.auto_close)) or (context.portfolio.positions[x].amount < 0):
             amt_x_port = context.portfolio.positions[x].amount
@@ -451,7 +450,7 @@ def trade(context, data):
                 log.info("ORDER:ZERO: context.portfolio.positions[{}].amount is {}".format(x, amt_x_port))
     
     ###prorate(context.stock_weights, max_alloc=0.2, atol=1.e-3)
-    #if abs(top_n_by_momentum.sum()) > 0:        
+    #if abs(top_n_by_momentum.sum()) > 0:
         #mx = top_n_by_momentum.max(); mn = top_n_by_momentum.min()
         #context.stock_weights = (top_n_by_momentum - mn) / (mx - mn)
         #context.stock_weights = context.stock_weights/abs(context.stock_weights.sum())
@@ -511,4 +510,3 @@ def cancel_open_orders(self, data):
         for order in get_open_orders(security):
             cancel_order(order)
             log.warn('CANCEL: {} had open orders {}: now cancelled'.format(str(security),order))
-
