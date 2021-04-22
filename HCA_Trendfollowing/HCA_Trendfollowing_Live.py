@@ -9,8 +9,10 @@ import pandas as pd
 
 # Start:Zipline Builtin Functions
 def initialize(context):
-    context.asserts = symbols('SPY','ZSL', 'KOLD', 'GLD')
-    context.bonds = symbol('SHY')
+    context.asserts  = symbols('SPY','ZSL', 'KOLD', 'GLD')
+    context.bonds    = symbol('SHY')
+    context.universe = symbols('SPY','ZSL', 'KOLD', 'GLD', 'SHY')
+    
     context.top_n_by_momentum = pd.Series() 
     #Choose X stocks out of portfolio of Y stocks- how many stocks to hold - top X by momentum 
     context.num_stocks=3
@@ -26,10 +28,29 @@ def compute_momentum(context,data):
     momentum = price_history.pct_change(context.momentum_days).iloc[-1]
     context.top_n_by_momentum = momentum.nlargest(context.num_stocks).where(momentum>context.trend).dropna()
     return context.top_n_by_momentum
+
+def cancel_open_orders_and_clear_non_universe_positions(context):
+    from zipline.api import get_open_orders, order
+
+    for security in get_open_orders():
+        for order in get_open_orders(security):
+            cancel_order(order)
+            print('Security {} had open orders: now cancelled'.format(str(security)))
+            
+    positions      = context.broker.positions
+    
+    # Get rid of positions not in current universe
+    for key in positions:
+        if (key not in context.universe and not get_open_orders(key)):
+            print('Dump {}: Shares: {}'.format(key,-positions[key].amount))
+            order(key, -positions[key].amount)      
+
         
 def handle_data(context, data):
     if (not context.ORDERS_DONE):
         context.ORDERS_DONE = True
+        #cancel_open_orders()
+        cancel_open_orders_and_clear_non_universe_positions(context)
         trade(context, data) #Name of the original algo trading function
     else:
         print("Exiting: Zipline-broker: context.portfolio : {}".format(context.portfolio))
