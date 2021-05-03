@@ -1,9 +1,10 @@
-# hca-resources
-Library of examples illustrating the Flow:
-### Quantopian Algo -->
-### Zipline-broker Backtest -->
-### Zipline-broker Interactive Broker Live Trading
-## **HCA working examples**
+# Zipline-Broker Examples: hca-resources
+Library of examples illustrating the EconomicThesis:Research:Backtest:Trade Flow:
+
+### Each example has a notebook to drive the flow and one to show the results of a two year backtest tearsheet.
+### Each example also has one or two files for the backtest and live versions of the strategy as python files.
+
+## HCA Resources
 - **Fixed ratio allocations:**  [notebook](./HCA_Fixed_Ratio_Allocations/HCA_Fixed_Ratio_Allocations.ipynb) and 
 - **All weather optimize volatility:** [notebook](./HCA_AllWeatherOptimizeVolatility/HCA_AllWeatherOptimizeVolatility.ipynb)
 - **Trend following:**  [notebook](./HCA_Trendfollowing/HCA_Trendfollowing.ipynb)
