@@ -58,12 +58,12 @@ from pytz import timezone as _tz  # Python only does once, makes this portable.
 import sys, os
 import json # For pretty-printing results
 
-IS_LIVE = True #False #True #True #False #False #True
-DEBUG = True
+IS_LIVE = False #False #True #True #False #False #True
+DEBUG = False
 MINUTES_TO_REBAL = 1
 
 # Algo Parameter that is number in top indebeted assets, for pipeline.
-NUM_TOP_INDEBTED = 21 #25 #15
+NUM_TOP_INDEBTED = 10 #21 #25 #15
 
 # Logging. Following imports are not approved in Quantopian
 ####################################################################################
@@ -184,8 +184,9 @@ def initialize(context):
         schedule_function(
             trade,
             #date_rules.every_day(),
-            date_rules.week_end(days_offset=1),#0=Fri 1= Thurs
-            time_rules.market_open(minutes=30)
+            #date_rules.week_end(days_offset=1),#0=Fri 1= Thurs
+            date_rules.month_end(days_offset=3),
+            time_rules.market_close(minutes=30)
         )
         schedule_function(record_vars, date_rules.every_day(), time_rules.market_close())
         schedule_function(cancel_open_orders, date_rules.week_end(days_offset=2), time_rules.market_close())
@@ -194,12 +195,12 @@ def initialize(context):
     context.TF_filter = False
     #context.TF_lookback = 60
     #Set number of securities to buy and bonds fund (when we are out of stocks)
-    context.Target_securities_to_buy = 10 #15 #2 #1 #5 #10 #5
+    context.Target_securities_to_buy = 15 #10 #15 #2 #1 #5 #10 #5
     
     context.bonds = symbol('IEF') #sid(23870)  #IEF
-    context.relative_momentum_lookback = 22 #4 #22 #22 #22 #126 #Momentum lookback
+    context.relative_momentum_lookback = 44 #66 #22 #4 #22 #22 #22 #126 #Momentum lookback
     context.momentum_skip_days = 1
-    context.top_n_relative_momentum_to_buy = 10 #15 #1 #5 #5 #10 #5 #Number to buy
+    context.top_n_relative_momentum_to_buy = 10 #15 #10 #15 #1 #5 #5 #10 #5 #Number to buy
     context.stock_weights = pd.Series()
     context.bond_weights = pd.Series()
 
@@ -290,10 +291,71 @@ def handle_data(context, data):
     time_now = minut(context)
     log.info("___handle_data: {} = Current Trading Minute".format(time_now))
     sync_portfolio_to_broker(context, data)
-    
+
+
+# Average Dollar Volume without nanmean, so that recent IPOs are truly removed
+class ADV_adj(CustomFactor):
+    inputs = [USEP.close, USEP.volume]
+    window_length = 252
+
+    def compute(self, today, assets, out, close, volume):
+        close[np.isnan(close)] = 0
+        out[:] = np.mean(close * volume, 0)
+
+
+NUM_TOP_INDEBTED = 15 #10 #20
+
+
+
+def universe_filters():
+
+    # Equities with an average daily volume greater than 750000.
+    high_volume = AverageDollarVolume(window_length=66) > 1500000
+
+    # Equities for which morningstar's most recent Market Cap value is above $300
+
+    # Equities whose exchange id does not start with OTC (Over The Counter).
+    # startswith() is a new method available only on string-dtype Classifiers.
+    # It returns a Filter.
+    #not_otc = ~mstar.share_class_reference.exchange_id.latest.startswith('OTC')
+
+    # Equities whose symbol (according to morningstar) ends with .WI
+    # This generally indicates a "When Issued" offering.
+    # endswith() works similarly to startswith().
+    #not_wi = ~mstar.share_class_reference.symbol.latest.endswith('.WI')
+
+    # Equities whose company name ends with 'LP' or a similar string.
+    # The .matches() method uses the standard library `re` module to match
+    # against a regular expression.
+    #not_lp_name = ~mstar.company_reference.standard_name.latest.matches('.* L[\\. ]?P\.?$')
+
+    # Equities with a null entry for the balance_sheet.limited_partnership field.
+    # This is an alternative way of checking for LPs.
+    #not_lp_balance_sheet = mstar.balance_sheet.limited_partnership.latest.isnull()
+
+    # Highly liquid assets only. Also eliminates IPOs in the past 12 months
+    # Use new average dollar volume so that unrecorded days are given value 0
+    # and not skipped over
+    # S&P Criterion
+
+    #liquid = ADV_adj()
+    #liq_f = liquid > 25000
+    # Add logic when global markets supported
+    # S&P Criterion
+    #domicile = True
+
+    #universe_filter = (high_volume & primary_share & have_market_cap & not_depositary &
+    #                   common_stock & not_otc & not_wi & not_lp_name & not_lp_balance_sheet &
+    #                  liquid & domicile)
+    #universe_filter = (high_volume & liq_f)
+    universe_filter = (high_volume)
+
+
+    return universe_filter
+
 def make_pipeline():
     # Base universe set to the Q500US
-    #universe = # Q3000US()
+    universe = universe_filters() # Q3000US()
         # Create the factors we want use
     #rsi = RSI()
     price_close = USEP.close.latest
@@ -308,20 +370,24 @@ def make_pipeline():
     # Our universe is made up of stocks that have a non-null sentiment signal that was updated in
     # the last day, are not within 2 days of an earnings announcement, are not announced acquisition
     # targets, and are in the Q1500US.
-    
-    ltd_to_eq_rank = np.divide(dnc.latest, eusd.latest) #Fundamentals.long_term_debt_equity_ratio.latest
 
-    #universe =(True > False)
-    #((de.latest >5)
-    ###universe = (mc.latest >25e7) & (price_close > 5) #& (de.latest >15)
-    #universe = (mc.latest >25e6) & (price_close > 1.10) # ajjc: Issue: current day may not have fundamentals
-    #universe = (mc.latest >10e6) & (price_close > 3.0) & (price_volm > 100000)
-    universe = (fcf.latest > 1.5e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 1500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
-    #universe = (fcf.latest > 1.e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
-    #universe = universe & fcf.latest > 1.e8
+    ltd_to_eq_rank = np.divide(dnc.latest, eusd.latest) #Fundamentals.long_term_debt_equity_ratio.latest
+    # Create a screen for our Pipeline
+    #adv5000 = AverageDollarVolume(window_length = 44).percentile_between(90,100)
+    #mcap3000 = mc.latest.percentile_between(90,100) 
+    #universe = universe & adv5000 & mcap3000
+
+
+    adv5000 = AverageDollarVolume(window_length = 30).top(1500)
+    mcap3000 = mc.latest.top(500)
+
+    universe =  universe & adv5000 & mcap3000
+
+    universe = universe & (fcf.latest > 1.5e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 1500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
 
     de_f = de.latest #Fundamentals.long_term_debt_equity_ratio.latest
-    ###universe=~universe.matches('.*[-]*$')
+    #print(dir(universe))
+    #universe=~universe.matches('.*[-]*$')
 
     indebted = ltd_to_eq_rank.top(NUM_TOP_INDEBTED, mask=universe) #10 30 150 60
 
@@ -329,8 +395,8 @@ def make_pipeline():
     eusd_f = eusd.latest
     fcf_f = fcf.latest
 
-    mom    = Returns(inputs=[USEP.open],window_length=126,mask=indebted)
-    mom_av = SimpleMovingAverage(inputs=[mom],window_length=22,mask=indebted)
+    #mom    = Returns(inputs=[USEP.open],window_length=126,mask=indebted)
+    #mom_av = SimpleMovingAverage(inputs=[mom],window_length=22,mask=indebted)
 
     pipe = Pipeline(columns={
         'close':price_close,
@@ -339,9 +405,12 @@ def make_pipeline():
         'de'  : de_f,
         'dnc' : dnc_f,
         'eusd': eusd_f,
-         'fcf': fcf_f,
-        'mom' : mom,
-        'mom_av': mom_av},
+        'fcf': fcf_f,
+         'adv': adv5000,
+        'mcap': mcap3000,
+        #' mom' : mom,
+        # 'mom_av': mom_av
+        },
                     screen=indebted)
     return pipe
 
