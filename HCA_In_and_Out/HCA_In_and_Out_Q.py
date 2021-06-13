@@ -10,13 +10,12 @@ from trading_calendars import get_calendar
 def initialize(context):
     # -----------------------------------------------------------------------------------------------
     c = context
-    c.STOCKS = symbols('QQQ', 'WCLD'); c.BONDS = symbols('TLT','IEF', 'SCHD'); c.LEV = 1.00; c.wt = {};
+    c.STOCKS = symbols('QQQ'); c.BONDS = symbols('TLT','IEF'); c.LEV = 1.00; c.wt = {};
     c.A = symbol('SLV'); c.B = symbol('GLD'); c.C = symbol('XLI'); c.D = symbol('XLU');
     c.MKT = symbol('QQQ'); c.VOLA = 126; c.LB = 1.00; c.BULL = 1; c.COUNT = 0; c.OUT_DAY = 0; c.RET_INITIAL = 80;
 # -----------------------------------------------------------------------------------------------
 
-    schedule_function(daily_check, date_rules.every_month(), time_rules.market_open(minutes = 140))
-    #schedule_function(daily_check, date_rules.every_day(), time_rules.market_open(minutes = 140))
+    schedule_function(daily_check, date_rules.every_day(), time_rules.market_open(minutes = 140))
     schedule_function(record_vars, date_rules.every_day(), time_rules.market_close())
 def daily_check(context,data):
     c = context

@@ -366,7 +366,6 @@ def make_pipeline():
     dnc  = fd.debtnc
     eusd = fd.equityusd
     fcf = fd.fcf
-    catg = fd.category
     # Create a filter to select our 'universe'
     # Our universe is made up of stocks that have a non-null sentiment signal that was updated in
     # the last day, are not within 2 days of an earnings announcement, are not announced acquisition
@@ -395,7 +394,7 @@ def make_pipeline():
     dnc_f = dnc.latest
     eusd_f = eusd.latest
     fcf_f = fcf.latest
-    catg_f = catg.latest    
+
     #mom    = Returns(inputs=[USEP.open],window_length=126,mask=indebted)
     #mom_av = SimpleMovingAverage(inputs=[mom],window_length=22,mask=indebted)
 
@@ -409,7 +408,6 @@ def make_pipeline():
         'fcf': fcf_f,
          'adv': adv5000,
         'mcap': mcap3000,
-        'cat': catg_f,
         #' mom' : mom,
         # 'mom_av': mom_av
         },
@@ -458,7 +456,6 @@ def trade(context, data):
             df.drop(row, inplace=True)
             
     print(df.index)
-    print(df.cat)
 
     log.info("BeginTrade")
     if IS_LIVE:
