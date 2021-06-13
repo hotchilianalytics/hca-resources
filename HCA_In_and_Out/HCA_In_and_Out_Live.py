@@ -11,11 +11,11 @@ def initialize(context):
     # -----------------------------------------------------------------------------------------------
     # YAHOO_SYM_LST=QQQ,TLT,IEF,SLV,GLD,XLI,XLU zipline ingest -b yahoo_direct
     c = context
-    c.STOCKS = symbols('QQQ'); c.BONDS = symbols('TLT','IEF'); c.LEV = 1.00; c.wt = {};
+    c.STOCKS = symbols('QQQ', 'URTH'); c.BONDS = symbols('TLT','IEF', 'SCHD'); c.LEV = 1.00; c.wt = {};
     c.A = symbol('SLV'); c.B = symbol('GLD'); c.C = symbol('XLI'); c.D = symbol('XLU');
     c.MKT = symbol('QQQ'); c.VOLA = 126; c.LB = 1.00; c.BULL = 1; c.COUNT = 0; c.OUT_DAY = 0; c.RET_INITIAL = 80;
 # -----------------------------------------------------------------------------------------------
-
+    
     # schedule_function(daily_check, date_rules.every_day(), time_rules.market_open(minutes = 140))
     # schedule_function(record_vars, date_rules.every_day(), time_rules.market_close())
     
@@ -34,7 +34,7 @@ def sync_portfolio_to_broker(context, data):
             del context.portfolio.positions[x]    
     log.info("___CurrZiplinPosAft: {}".format(context.portfolio.positions)) #BUG: This is a Criticalupdate...
         
-def handle_data(context, data):
+def handle_data_orig(context, data):
     time_now = minut(context)
     log.info("___handle_data: {} = Current Trading Minute".format(time_now))
     sync_portfolio_to_broker(context, data)
@@ -76,6 +76,7 @@ def daily_check(context,data):
     
     print("WAIT_DAYS={} RET={} exit={} c.COUNT={} c.BULL={} c.OUT_DAY={}".format(WAIT_DAYS,RET,exit,c.COUNT,c.BULL,c.OUT_DAY))
     print("Trading Weights Today: wt_stk={} wt_bnd={} wts={}".format(c.wt,wt_stk,wt_bnd))
+    print("End: ---------------------------")
     
     #for sec, weight in c.wt.items():
         #order_target_percent(sec, weight)

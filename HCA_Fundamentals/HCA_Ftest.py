@@ -59,7 +59,7 @@ import sys, os
 import json # For pretty-printing results
 
 IS_LIVE = False #False #True #True #False #False #True
-DEBUG = False
+DEBUG = True #False
 MINUTES_TO_REBAL = 1
 
 # Algo Parameter that is number in top indebeted assets, for pipeline.
@@ -352,7 +352,19 @@ def universe_filters():
 
 
     return universe_filter
-
+    DomComStk_lst= [
+      'Domestic Common Stock',
+    #'ADR Common Stock',
+         'Domestic Common Stock Primary Class',
+   #'Canadian Common Stock',
+         #'ADR Common Stock Primary Class',
+         #'Canadian Common Stock Primary Class',
+         #'Domestic Common Stock Secondary Class', 'Domestic Stock Warrant',
+         #'Domestic Preferred Stock', 'ADR Stock Warrant',
+         #'ADR Preferred Stock', 'ADR Common Stock Secondary Class',
+         #'Canadian Stock Warrant', 'Canadian Preferred Stock', nan, 'ETF',
+         #'CEF', 'ETN', 'ETD', 'IDX'
+  ]  
 def make_pipeline():
     # Base universe set to the Q500US
     universe = universe_filters() # Q3000US()
@@ -361,11 +373,11 @@ def make_pipeline():
     price_close = USEP.close.latest
     fd=Fundamentals()
     price_volm = USEP.volume.latest
-    mc   = fd.marketcap
-    de   = fd.de
+    #mc   = fd.marketcap
+    #de   = fd.de
     dnc  = fd.debtnc
     eusd = fd.equityusd
-    fcf = fd.fcf
+    #fcf = fd.fcf
     catg = fd.category
     # Create a filter to select our 'universe'
     # Our universe is made up of stocks that have a non-null sentiment signal that was updated in
@@ -379,14 +391,16 @@ def make_pipeline():
     #universe = universe & adv5000 & mcap3000
 
 
-    adv5000 = AverageDollarVolume(window_length = 30).top(1500)
-    mcap3000 = mc.latest.top(500)
+    #adv5000 = AverageDollarVolume(window_length = 30).top(1500)
+    #mcap3000 = mc.latest.top(500)
 
-    universe =  universe & adv5000 & mcap3000
+    universe =  universe
+    #& adv5000 & mcap3000
 
-    universe = universe & (fcf.latest > 1.5e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 1500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
+    universe = universe
+    #& (fcf.latest > 1.5e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 1500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
 
-    de_f = de.latest #Fundamentals.long_term_debt_equity_ratio.latest
+    #de_f = de.latest #Fundamentals.long_term_debt_equity_ratio.latest
     #print(dir(universe))
     #universe=~universe.matches('.*[-]*$')
 
@@ -394,21 +408,21 @@ def make_pipeline():
 
     dnc_f = dnc.latest
     eusd_f = eusd.latest
-    fcf_f = fcf.latest
+    #fcf_f = fcf.latest
     catg_f = catg.latest    
     #mom    = Returns(inputs=[USEP.open],window_length=126,mask=indebted)
     #mom_av = SimpleMovingAverage(inputs=[mom],window_length=22,mask=indebted)
 
     pipe = Pipeline(columns={
-        'close':price_close,
-        'volm' :price_volm,
+        #'close':price_close,
+        #'volm' :price_volm,
         'ltd_to_eq_rank': ltd_to_eq_rank,
-        'de'  : de_f,
-        'dnc' : dnc_f,
-        'eusd': eusd_f,
-        'fcf': fcf_f,
-         'adv': adv5000,
-        'mcap': mcap3000,
+        #'de'  : de_f,
+        #'dnc' : dnc_f,
+        #'eusd': eusd_f,
+        #'fcf': fcf_f,
+         #'adv': adv5000,
+        #'mcap': mcap3000,
         'cat': catg_f,
         #' mom' : mom,
         # 'mom_av': mom_av
