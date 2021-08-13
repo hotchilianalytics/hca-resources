@@ -1,4 +1,29 @@
 #!/usr/bin/env python
+### CmdLine:start
+#zipline 
+#run -f /home/hca-ws2004/hca/hca-resources/HCA_Fundamentals/HCA_Fundamentals_Live.py 
+#--bundle sharadar-eqfd --capital-base=100000  
+#--start=2019-01-01 --end=2021-07-19 
+#-o /home/hca-ws2004/hca/hca-resources/HCA_Fundamentals/HCA_Fundamentals_Live.pkl
+### CmdLine:end
+
+### Tearsheet Name: HCA_Fundamentals_tearsheet.ipynb
+
+'''
+|Name  | Value |
+| :- |:-------------: |
+| Algo Name :  | HCA_Fundamentals_Live.py|
+| Algo Version   :  | v001  |
+| Algo Date   :  | 2021-07-20 |
+|  | |
+| Notebook:  | HotChili Trader Tear Sheet |
+| Version:  | 2.0.0 |
+| Date:  | 2021-07-16  |
+| Copyright:  | @2019-2021 |
+| Company:  | HotChili Analytics, LLC |
+| Authors   :  | Alan & Jeff Coppola, Anthony Garner |
+'''
+
 from __future__ import absolute_import, unicode_literals
 
 from zipline.pipeline.data import USEquityPricing as USEP
@@ -62,8 +87,12 @@ IS_LIVE = False #False #True #True #False #False #True
 DEBUG = False
 MINUTES_TO_REBAL = 1
 
+from alphatools.fundamentals import Fundamentals
+fd = Fundamentals()
+
 # Algo Parameter that is number in top indebeted assets, for pipeline.
-NUM_TOP_INDEBTED = 10 #21 #25 #15
+NUM_TOP_INDEBTED = 20 #10 #21 #25 #15
+PFLIO_SZ = NUM_TOP_INDEBTED
 
 # Logging. Following imports are not approved in Quantopian
 ####################################################################################
@@ -183,10 +212,10 @@ def initialize(context):
     if not IS_LIVE:
         schedule_function(
             trade,
-            #date_rules.every_day(),
+            date_rules.every_day(),
             #date_rules.week_end(days_offset=1),#0=Fri 1= Thurs
-            date_rules.month_end(days_offset=3),
-            time_rules.market_close(minutes=30)
+            #date_rules.month_end(days_offset=3),
+            time_rules.market_close(minutes=15)
         )
         schedule_function(record_vars, date_rules.every_day(), time_rules.market_close())
         schedule_function(cancel_open_orders, date_rules.week_end(days_offset=2), time_rules.market_close())
@@ -195,12 +224,12 @@ def initialize(context):
     context.TF_filter = False
     #context.TF_lookback = 60
     #Set number of securities to buy and bonds fund (when we are out of stocks)
-    context.Target_securities_to_buy = 15 #10 #15 #2 #1 #5 #10 #5
+    context.Target_securities_to_buy = 15 #15 #10 #15 #2 #1 #5 #10 #5
     
     context.bonds = symbol('IEF') #sid(23870)  #IEF
-    context.relative_momentum_lookback = 44 #66 #22 #4 #22 #22 #22 #126 #Momentum lookback
+    context.relative_momentum_lookback = 66 #66 #22 #4 #22 #22 #22 #126 #Momentum lookback
     context.momentum_skip_days = 1
-    context.top_n_relative_momentum_to_buy = 10 #15 #10 #15 #1 #5 #5 #10 #5 #Number to buy
+    context.top_n_relative_momentum_to_buy = 15 #10 #15 #10 #15 #1 #5 #5 #10 #5 #Number to buy
     context.stock_weights = pd.Series()
     context.bond_weights = pd.Series()
 
@@ -259,7 +288,7 @@ def before_trading_start(context, data):
                 c.pipeline_data.drop(x, inplace=True)
                 print("DroppedFromPipeline:InAutoClose:[{}] Date:{}".format(x, c.get_datetime()))
     
-    print("BeforeTrStrt:", c.pipeline_data)
+    #print("BeforeTrStrt:", c.pipeline_data)
     
     # ajjc Test Using broker=IB + data-frequncy=daily:
     #spy_maFast_curr = data.current(symbol('AAPL') , "price")
@@ -303,14 +332,14 @@ class ADV_adj(CustomFactor):
         out[:] = np.mean(close * volume, 0)
 
 
-NUM_TOP_INDEBTED = 15 #10 #20
+#NUM_TOP_INDEBTED = 20 #10 #15 #10 #20
 
 
 
 def universe_filters():
 
     # Equities with an average daily volume greater than 750000.
-    high_volume = AverageDollarVolume(window_length=66) > 1500000
+    #high_volume = AverageDollarVolume(window_length=66) > 750000
 
     # Equities for which morningstar's most recent Market Cap value is above $300
 
@@ -348,66 +377,90 @@ def universe_filters():
     #                   common_stock & not_otc & not_wi & not_lp_name & not_lp_balance_sheet &
     #                  liquid & domicile)
     #universe_filter = (high_volume & liq_f)
-    universe_filter = (high_volume)
+    
+    marketcap = fd.marketcap.latest.top(1500)
+    high_volume = AverageDollarVolume(window_length=66) > 750000
 
+    ###orig high_volume = AverageDollarVolume(window_length=252) > 2000000
+    #price_volm_thres = USEP.volume.latest > 500000
 
+    universe = (marketcap & high_volume) #exchange  & category & notdelisted)
+    debt = fd.debt.latest
+    assets = fd.assets.latest
+    universe_filter = np.divide(debt, assets).top(PFLIO_SZ, mask=universe) #20
+    #universe_filter = universe 
+    print("Being called.....")
     return universe_filter
+
+    
+    #universe_filter = (high_volume)
+
+
+    #return universe_filter
 
 def make_pipeline():
     # Base universe set to the Q500US
     universe = universe_filters() # Q3000US()
         # Create the factors we want use
     #rsi = RSI()
-    price_close = USEP.close.latest
-    fd=Fundamentals()
-    price_volm = USEP.volume.latest
-    mc   = fd.marketcap
-    de   = fd.de
+    #price_close = USEP.close.latest
+    #fd=Fundamentals()
+    #price_volm = USEP.volume.latest
+    #mc   = fd.marketcap
+    #de   = fd.de
     dnc  = fd.debtnc
     eusd = fd.equityusd
-    fcf = fd.fcf
+    #fcf = fd.fcf
+    catg = fd.category
     # Create a filter to select our 'universe'
     # Our universe is made up of stocks that have a non-null sentiment signal that was updated in
     # the last day, are not within 2 days of an earnings announcement, are not announced acquisition
     # targets, and are in the Q1500US.
 
     ltd_to_eq_rank = np.divide(dnc.latest, eusd.latest) #Fundamentals.long_term_debt_equity_ratio.latest
+    
+    debt = fd.debt.latest
+    assets = fd.assets.latest
+    debt_to_assets = np.divide(debt, assets)
+
     # Create a screen for our Pipeline
     #adv5000 = AverageDollarVolume(window_length = 44).percentile_between(90,100)
     #mcap3000 = mc.latest.percentile_between(90,100) 
     #universe = universe & adv5000 & mcap3000
 
 
-    adv5000 = AverageDollarVolume(window_length = 30).top(1500)
-    mcap3000 = mc.latest.top(500)
+    #adv5000 = AverageDollarVolume(window_length = 30).top(1500)
+    #mcap3000 = mc.latest.top(1500)
 
-    universe =  universe & adv5000 & mcap3000
+    #universe =  universe & adv5000 & mcap3000
 
-    universe = universe & (fcf.latest > 1.5e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 1500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
+    ### universe = universe & (fcf.latest > 1.5e8) & (mc.latest >25e6) & (price_close > 10.0) & (price_volm > 1500000) & (ltd_to_eq_rank < 32.0) #100000 is too big #10000 is too small. Cannot get subscription for ILTB
 
-    de_f = de.latest #Fundamentals.long_term_debt_equity_ratio.latest
+    #de_f = de.latest #Fundamentals.long_term_debt_equity_ratio.latest
     #print(dir(universe))
     #universe=~universe.matches('.*[-]*$')
 
-    indebted = ltd_to_eq_rank.top(NUM_TOP_INDEBTED, mask=universe) #10 30 150 60
-
-    dnc_f = dnc.latest
-    eusd_f = eusd.latest
-    fcf_f = fcf.latest
-
+    #indebted = ltd_to_eq_rank.top(PFLIO_SZ, mask=universe) #10 30 150 60
+    indebted = universe
+    #dnc_f = dnc.latest
+    #eusd_f = eusd.latest
+    #fcf_f = fcf.latest
+    catg_f = catg.latest    
     #mom    = Returns(inputs=[USEP.open],window_length=126,mask=indebted)
     #mom_av = SimpleMovingAverage(inputs=[mom],window_length=22,mask=indebted)
 
     pipe = Pipeline(columns={
-        'close':price_close,
-        'volm' :price_volm,
+        #'close':price_close,
+        #'volm' :price_volm,
+        'debt_to_assets':debt_to_assets,
         'ltd_to_eq_rank': ltd_to_eq_rank,
-        'de'  : de_f,
-        'dnc' : dnc_f,
-        'eusd': eusd_f,
-        'fcf': fcf_f,
-         'adv': adv5000,
-        'mcap': mcap3000,
+        #'de'  : de_f,
+        #'dnc' : dnc_f,
+        #'eusd': eusd_f,
+        #'fcf': fcf_f,
+        # 'adv': adv5000,
+        #'mcap': mcap3000,
+        'cat': catg_f,
         #' mom' : mom,
         # 'mom_av': mom_av
         },
@@ -455,7 +508,8 @@ def trade(context, data):
             print("trade: Remove Asset:{} exchange:{}".format(row, row.exchange))
             df.drop(row, inplace=True)
             
-    print(df.index)
+    #print(df.index)
+    #print(df.cat)
 
     log.info("BeginTrade")
     if IS_LIVE:
@@ -463,8 +517,8 @@ def trade(context, data):
         log.info("trade:___CurrBrokerPosCur: {}".format(context.broker.positions))
          
     ############Trend Following Regime Filter############
-    #CrossOver_Fast_Slow_Pair = (5, 20)
-    CrossOver_Fast_Slow_Pair = (10, 100)
+    CrossOver_Fast_Slow_Pair = (5, 20)
+    #CrossOver_Fast_Slow_Pair = (10, 100)
     spy_maFast = data.history(context.spy , "close", CrossOver_Fast_Slow_Pair[0], "1d").mean()
     spy_maSlow = data.history(context.spy , "close", CrossOver_Fast_Slow_Pair[1], "1d").mean()
     log.info("SPY_MA_CROSS:{}:spy_maFast= {} :spy_maSlow = {}".format(spy_maFast >= spy_maSlow, spy_maFast, spy_maSlow))
@@ -479,7 +533,7 @@ def trade(context, data):
     #df.index = df.index.str.split('-').str[0]
 
     prices = data.history(df.index,"close", context.relative_momentum_lookback + 1, "1d") #180
-    log.info("prices:\n{}\n".format( prices))
+    #log.info("prices:\n{}\n".format( prices))
 
     #Calculate the momentum of our top ROE stocks
     quality_momentum = prices[:-context.momentum_skip_days].pct_change(context.relative_momentum_lookback - 1).iloc[-1]
@@ -572,7 +626,6 @@ def record_vars(context, data):
        log.info("BAD: shorts={} lvg={}".format(shorts,context.account.leverage))
    if (longs < 2): # or (context.account.leverage >1.25):
        log.info("NO-ASSETS: longs={} lvg={}".format(longs,context.account.leverage))
-
 
 def cancel_open_orders(self, data):
     for security in get_open_orders():
